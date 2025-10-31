@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PriceTable from './components/Table/PriceTable.jsx';
+import { API_BASE_URL, API_ENDPOINTS, apiCall } from './config/api.js';
 
 // 製品データ
 const initialTableData = [
@@ -14,6 +15,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [tableData, setTableData] = useState(initialTableData);
   const [activeTab, setActiveTab] = useState('price-table');
+  const [apiStatus, setApiStatus] = useState('未接続');
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -26,6 +28,27 @@ function App() {
       setIsSidebarOpen(false);
     }
   };
+
+  // API接続テスト用の関数
+  const testApiConnection = async () => {
+    try {
+      setApiStatus('接続中...');
+      const response = await apiCall(API_ENDPOINTS.HEALTH);
+      setApiStatus('接続成功');
+      console.log('API Response:', response);
+    } catch (error) {
+      setApiStatus('接続失敗');
+      console.error('API connection failed:', error);
+    }
+  };
+
+  // コンポーネントマウント時にAPI接続をテスト
+  useEffect(() => {
+    // 開発環境でのみ自動接続テスト
+    if (import.meta.env.MODE === 'development') {
+      testApiConnection();
+    }
+  }, []);
 
   const menuItems = [
     {
@@ -239,22 +262,45 @@ function App() {
               <div style={{backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem'}}>
                 <h3 className="text-lg font-medium mb-4">Red Hat License Manager へようこそ</h3>
                 <p className="text-gray-600 mb-4">このダッシュボードでは、Red Hat製品のライセンス情報を管理できます。</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-blue-800">製品数</h4>
-                    <p className="text-2xl font-bold text-blue-600">{tableData.length}</p>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '1.5rem'}}>
+                  <div style={{backgroundColor: '#eff6ff', padding: '1rem', borderRadius: '0.5rem'}}>
+                    <h4 style={{fontWeight: '600', color: '#1e40af'}}>製品数</h4>
+                    <p style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#2563eb'}}>{tableData.length}</p>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-green-800">カテゴリ</h4>
-                    <p className="text-2xl font-bold text-green-600">{[...new Set(tableData.map(item => item.category))].length}</p>
+                  <div style={{backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '0.5rem'}}>
+                    <h4 style={{fontWeight: '600', color: '#166534'}}>カテゴリ</h4>
+                    <p style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#16a34a'}}>{[...new Set(tableData.map(item => item.category))].length}</p>
                   </div>
-                  <div className="bg-purple-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-purple-800">合計価格</h4>
-                    <p className="text-2xl font-bold text-purple-600">¥{tableData.reduce((sum, item) => {
+                  <div style={{backgroundColor: '#faf5ff', padding: '1rem', borderRadius: '0.5rem'}}>
+                    <h4 style={{fontWeight: '600', color: '#7c2d12'}}>合計価格</h4>
+                    <p style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#a855f7'}}>¥{tableData.reduce((sum, item) => {
                       const price = parseInt(item.price_std.replace(/[¥,]/g, ''));
                       return sum + price;
                     }, 0).toLocaleString()}</p>
                   </div>
+                  <div style={{backgroundColor: '#fef3c7', padding: '1rem', borderRadius: '0.5rem'}}>
+                    <h4 style={{fontWeight: '600', color: '#92400e'}}>API接続状態</h4>
+                    <p style={{fontSize: '1.125rem', fontWeight: 'bold', color: '#d97706'}}>{apiStatus}</p>
+                    <button 
+                      onClick={testApiConnection}
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.25rem 0.75rem',
+                        backgroundColor: '#f59e0b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      再接続
+                    </button>
+                  </div>
+                </div>
+                <div style={{backgroundColor: '#f3f4f6', padding: '1rem', borderRadius: '0.5rem', fontSize: '0.875rem', color: '#6b7280'}}>
+                  <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
+                  <p><strong>Environment:</strong> {import.meta.env.MODE}</p>
                 </div>
               </div>
             </div>

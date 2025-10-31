@@ -17,6 +17,9 @@ __pycache__/
 .env.test.local
 .env.production.local
 
+# Keep development and production env files for reference
+# but ignore sensitive local overrides
+
 # IDE files
 .vscode/
 .idea/
