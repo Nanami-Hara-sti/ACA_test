@@ -1,0 +1,50 @@
+name: Build and Push to GHCR
+
+# mainブランチにプッシュされたときに実行
+on:
+  push:
+    branches: [ main ]
+
+# GHCRに書き込むための権限
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # 自動的に提供されます
+
+      # --- Backend イメージのビルド＆プッシュ ---
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: . # docker-compose.yml と同じくルートコンテキスト
+          file: ./backend/Dockerfile # backendのDockerfileを指定
+          # target: production # もしDockerfileに本番ステージがある場合
+          push: true
+          # イメージ名 (例: ghcr.io/na-hara/my-test-backend:latest)
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/my-test-backend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/my-test-backend:latest
+
+      # --- Frontend イメージのビルド＆プッシュ ---
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          # target: production # frontend/Dockerfile はデフォルトで本番ビルドのはず
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/my-test-frontend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/my-test-frontend:latest

@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pymysql
+pyjwt[crypto]
+fastapi-cors
+azure-identity
+pyodbc
+python-dotenv

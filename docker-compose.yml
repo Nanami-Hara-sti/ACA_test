@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./backend:/workspace/backend
+    ports:
+      - "8001:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: development
+    command: ["npm", "run", "dev"]
+    volumes:
+      - ./frontend:/workspace/frontend
+      # keep the image-built node_modules from being hidden by the host bind mount
+      - /workspace/frontend/node_modules
+    ports:
+      - "3001:5173"
+    depends_on:
+      - backend

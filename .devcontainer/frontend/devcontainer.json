@@ -1,0 +1,28 @@
+{
+  "name": "Frontend Container",
+
+  // 使用するdocker-compose.ymlのパス
+  "dockerComposeFile": [
+    "../../docker-compose.yml"
+  ],
+
+  // 今度は'frontend'サービスに接続するよう指定
+  "service": "frontend",
+
+  // フロントエンド用の作業フォルダを指定
+  "workspaceFolder": "/workspace/frontend",
+
+  "customizations": {
+    "vscode": {
+      // フロントエンド開発に特化した拡張機能を追加
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Codeium.codeium"
+      ]
+    }
+  },
+
+  // フロントエンドのポートをフォワーディング
+  "forwardPorts": [3001]
+}

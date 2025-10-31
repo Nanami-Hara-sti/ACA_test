@@ -1,0 +1,25 @@
+{
+  "name": "Backend Container",
+
+  // 使用するdocker-compose.ymlのパスを、このファイルからの相対パスで指定
+  "dockerComposeFile": [
+    "../../docker-compose.yml"
+  ],
+
+  // docker-compose.ymlに定義したサービスの中から、接続したいサービス名を指定（最重要）
+  "service": "backend",
+
+  // コンテナに接続したときに開く作業フォルダ
+  "workspaceFolder": "/workspace/backend",
+
+  "customizations": {
+    "vscode": {
+      // Python開発に特化した拡張機能を追加
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff" // Python用の高速Linter
+      ]
+    }
+  }
+}
