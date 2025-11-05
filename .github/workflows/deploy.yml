@@ -71,7 +71,7 @@ jobs:
           target: production # 明示的にproductionターゲットを指定
           push: true
           build-args: |
-            VITE_API_BASE_URL=placeholder-will-be-replaced-at-runtime
+            VITE_API_BASE_URL=https://rg-test-hara-ca-back.blackrock-912602d1.westus.azurecontainerapps.io
           tags: |
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:${{ github.sha }}
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:latest
