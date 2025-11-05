@@ -14,10 +14,10 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # AZURE_RESOURCE_GROUP: 'rg-test-hara'
-  # AZURE_CONTAINER_APP_ENVIRONMENT: 'ca-env-test'
-  # BACKEND_APP_NAME: 'rg-test-hara-ca-back'
-  # FRONTEND_APP_NAME: 'rg-test-hara-ca-front'
+  AZURE_RESOURCE_GROUP: 'rg-test-hara'
+  AZURE_CONTAINER_APP_ENVIRONMENT: 'ca-env-test'
+  BACKEND_APP_NAME: 'rg-test-hara-ca-back'
+  FRONTEND_APP_NAME: 'rg-test-hara-ca-front'
 
 jobs:
   build-and-push:
@@ -76,80 +76,78 @@ jobs:
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:${{ github.sha }}
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:latest
 
-  # # Container Appsへのデプロイジョブ
-  # deploy-to-containerapp:
-  #   needs: build-and-push
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+  # Container Appsへのデプロイジョブ
+  deploy-to-containerapp:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  #     # Azure CLIにログイン（OpenID Connect使用）
-  #     - name: Azure Login
-  #       uses: azure/login@v1
-  #       with:
-  #         client-id: ${{ secrets.AZURE_CLIENT_ID }}
-  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # Azure CLIにログイン（ユーザー認証情報使用）
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-  #     # バックエンドContainer Appの作成・更新
-  #     - name: Deploy backend to Container Apps
-  #       run: |
-  #         az containerapp update \
-  #           --name ${{ env.BACKEND_APP_NAME }} \
-  #           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-  #           --image ${{ needs.build-and-push.outputs.backend-image }} \
-  #           --set-env-vars ENVIRONMENT=production \
-  #           || az containerapp create \
-  #             --name ${{ env.BACKEND_APP_NAME }} \
-  #             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-  #             --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
-  #             --image ${{ needs.build-and-push.outputs.backend-image }} \
-  #             --env-vars ENVIRONMENT=production \
-  #             --ingress external \
-  #             --target-port 8000 \
-  #             --min-replicas 1 \
-  #             --max-replicas 3
+      # バックエンドContainer Appの作成・更新
+      - name: Deploy backend to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.BACKEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ needs.build-and-push.outputs.backend-image }} \
+            --set-env-vars ENVIRONMENT=production SQL_SERVER_NAME="rg-test-hara.database.windows.net" SQL_DATABASE_NAME="rg-test-hara-SQL" \
+            || az containerapp create \
+              --name ${{ env.BACKEND_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
+              --image ${{ needs.build-and-push.outputs.backend-image }} \
+              --env-vars ENVIRONMENT=production SQL_SERVER_NAME="rg-test-hara.database.windows.net" SQL_DATABASE_NAME="rg-test-hara-SQL" \
+              --ingress external \
+              --target-port 8000 \
+              --min-replicas 1 \
+              --max-replicas 3
 
-  #     # バックエンドURLを取得
-  #     - name: Get backend URL
-  #       id: backend-url
-  #       run: |
-  #         BACKEND_URL=$(az containerapp show \
-  #           --name ${{ env.BACKEND_APP_NAME }} \
-  #           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-  #           --query properties.configuration.ingress.fqdn \
-  #           --output tsv)
-  #         echo "url=https://$BACKEND_URL" >> $GITHUB_OUTPUT
+      # バックエンドURLを取得
+      - name: Get backend URL
+        id: backend-url
+        run: |
+          BACKEND_URL=$(az containerapp show \
+            --name ${{ env.BACKEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          echo "url=https://$BACKEND_URL" >> $GITHUB_OUTPUT
 
-  #     # フロントエンドContainer Appの作成・更新
-  #     - name: Deploy frontend to Container Apps
-  #       run: |
-  #         az containerapp update \
-  #           --name ${{ env.FRONTEND_APP_NAME }} \
-  #           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-  #           --image ${{ needs.build-and-push.outputs.frontend-image }} \
-  #           --set-env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
-  #           || az containerapp create \
-  #             --name ${{ env.FRONTEND_APP_NAME }} \
-  #             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-  #             --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
-  #             --image ${{ needs.build-and-push.outputs.frontend-image }} \
-  #             --env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
-  #             --ingress external \
-  #             --target-port 3000 \
-  #             --min-replicas 1 \
-  #             --max-replicas 3
+      # フロントエンドContainer Appの作成・更新
+      - name: Deploy frontend to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ needs.build-and-push.outputs.frontend-image }} \
+            --set-env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
+            || az containerapp create \
+              --name ${{ env.FRONTEND_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
+              --image ${{ needs.build-and-push.outputs.frontend-image }} \
+              --env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
+              --ingress external \
+              --target-port 3000 \
+              --min-replicas 1 \
+              --max-replicas 3
 
-  #     # デプロイ結果を表示
-  #     - name: Display deployment URLs
-  #       run: |
-  #         echo "🚀 Deployment completed successfully!"
-  #         echo "Backend URL: ${{ steps.backend-url.outputs.url }}"
+      # デプロイ結果を表示
+      - name: Display deployment URLs
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo "Backend URL: ${{ steps.backend-url.outputs.url }}"
           
-  #         FRONTEND_URL=$(az containerapp show \
-  #           --name ${{ env.FRONTEND_APP_NAME }} \
-  #           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-  #           --query properties.configuration.ingress.fqdn \
-  #           --output tsv)
-  #         echo "Frontend URL: https://$FRONTEND_URL"
+          FRONTEND_URL=$(az containerapp show \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          echo "Frontend URL: https://$FRONTEND_URL"
