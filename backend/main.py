@@ -85,6 +85,7 @@ app.add_middleware(
         "http://localhost:3000", # ローカルのReactアプリ (CRA)
         "http://localhost:5173", # ローカルのReactアプリ (Vite)
         "http://localhost:3001", # Docker Compose フロントエンド
+        "https://rg-test-hara-ca-front.blackrock-912602d1.westus.azurecontainerapps.io", # 本番フロントエンド
         "https://react-test.company.com" # 将来の本番フロント
     ],
     allow_credentials=True,
