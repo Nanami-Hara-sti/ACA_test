@@ -2,7 +2,7 @@
 const config = {
   // 開発環境用
   development: {
-    API_BASE_URL: 'http://localhost:8001',
+    API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   },
   // 本番環境用
   production: {

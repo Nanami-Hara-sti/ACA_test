@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
   packages: write
-  # id-token: write # Azure OpenID Connect用
+  id-token: write # Azure OpenID Connect用
 
 env:
   REGISTRY: ghcr.io
@@ -22,9 +22,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # outputs:
-    #   backend-image: ${{ steps.backend-meta.outputs.image-name }}
-    #   frontend-image: ${{ steps.frontend-meta.outputs.image-name }}
+    outputs:
+      backend-image: ${{ steps.backend-meta.outputs.image-name }}
+      frontend-image: ${{ steps.frontend-meta.outputs.image-name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }} # 自動的に提供されます
+          password: ${{ secrets.ACA_DEPLOY_TOKEN }} # Personal Access Tokenを使用
 
       # --- Backend イメージのビルド＆プッシュ ---
       - name: Set backend image metadata
@@ -84,30 +84,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Azure CLIにログイン（ユーザー認証情報使用）
-      - name: Azure Login
-        uses: azure/login@v1
+      # Azure認証 - OIDC (OpenID Connect) 使用
+      - name: Azure Login with OIDC
+        uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: "34b26923-f47e-4dbd-8fc8-919c563d98a2"
+          tenant-id: "cc423cef-aa40-4433-bce1-d2ff9176c0ca"
+          subscription-id: "f682b8b9-db81-412d-97da-c8a2c93d586a"
+          
+      # 認証確認
+      - name: Verify Azure Authentication
+        run: |
+          echo "✅ Azure authentication successful"
+          az account show
+          echo "Ready to deploy Container Apps..."
 
-      # バックエンドContainer Appの作成・更新
+      # バックエンドContainer Appの更新
       - name: Deploy backend to Container Apps
         run: |
           az containerapp update \
             --name ${{ env.BACKEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --image ${{ needs.build-and-push.outputs.backend-image }} \
-            --set-env-vars ENVIRONMENT=production SQL_SERVER_NAME="rg-test-hara.database.windows.net" SQL_DATABASE_NAME="rg-test-hara-SQL" \
-            || az containerapp create \
-              --name ${{ env.BACKEND_APP_NAME }} \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
-              --image ${{ needs.build-and-push.outputs.backend-image }} \
-              --env-vars ENVIRONMENT=production SQL_SERVER_NAME="rg-test-hara.database.windows.net" SQL_DATABASE_NAME="rg-test-hara-SQL" \
-              --ingress external \
-              --target-port 8000 \
-              --min-replicas 1 \
-              --max-replicas 3
+            --set-env-vars ENVIRONMENT=production SQL_SERVER_NAME="rg-test-hara.database.windows.net" SQL_DATABASE_NAME="rg-test-hara-SQL"
 
       # バックエンドURLを取得
       - name: Get backend URL
@@ -120,24 +119,14 @@ jobs:
             --output tsv)
           echo "url=https://$BACKEND_URL" >> $GITHUB_OUTPUT
 
-      # フロントエンドContainer Appの作成・更新
+      # フロントエンドContainer Appの更新
       - name: Deploy frontend to Container Apps
         run: |
           az containerapp update \
             --name ${{ env.FRONTEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --image ${{ needs.build-and-push.outputs.frontend-image }} \
-            --set-env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
-            || az containerapp create \
-              --name ${{ env.FRONTEND_APP_NAME }} \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
-              --image ${{ needs.build-and-push.outputs.frontend-image }} \
-              --env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
-              --ingress external \
-              --target-port 3000 \
-              --min-replicas 1 \
-              --max-replicas 3
+            --set-env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }}
 
       # デプロイ結果を表示
       - name: Display deployment URLs
