@@ -84,59 +84,79 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Azure認証 - OIDC (OpenID Connect) 使用
-      - name: Azure Login with OIDC
-        uses: azure/login@v2
-        with:
-          client-id: "34b26923-f47e-4dbd-8fc8-919c563d98a2"
-          tenant-id: "cc423cef-aa40-4433-bce1-d2ff9176c0ca"
-          subscription-id: "f682b8b9-db81-412d-97da-c8a2c93d586a"
-          
-      # 認証確認
-      - name: Verify Azure Authentication
+      # 一時的にAzure認証をスキップし、手動デプロイ用の情報を提供
+      - name: Skip Azure Auth and Provide Manual Deploy Info
         run: |
-          echo "✅ Azure authentication successful"
-          az account show
-          echo "Ready to deploy Container Apps..."
+          echo "🔧 Azure認証設定が必要です。現在は手動デプロイ用の情報を提供します。"
+          echo ""
+          echo "✅ ビルドされたイメージ:"
+          echo "Backend:  ${{ needs.build-and-push.outputs.backend-image }}"
+          echo "Frontend: ${{ needs.build-and-push.outputs.frontend-image }}"
+          echo ""
+          echo "📋 手動デプロイコマンド:"
+          echo "# Backend デプロイ"
+          echo "az containerapp update \\"
+          echo "  --name ${{ env.BACKEND_APP_NAME }} \\"
+          echo "  --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \\"
+          echo "  --image ${{ needs.build-and-push.outputs.backend-image }} \\"
+          echo "  --set-env-vars ENVIRONMENT=production SQL_SERVER_NAME='rg-test-hara.database.windows.net' SQL_DATABASE_NAME='rg-test-hara-SQL'"
+          echo ""
+          echo "# Frontend デプロイ"  
+          echo "az containerapp update \\"
+          echo "  --name ${{ env.FRONTEND_APP_NAME }} \\"
+          echo "  --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \\"
+          echo "  --image ${{ needs.build-and-push.outputs.frontend-image }} \\"
+          echo "  --set-env-vars VITE_API_BASE_URL='https://rg-test-hara-ca-back.blackrock-912602d1.westus.azurecontainerapps.io'"
 
-      # バックエンドContainer Appの更新
-      - name: Deploy backend to Container Apps
+      # デプロイスクリプト生成
+      - name: Generate deployment script
         run: |
+          cat << 'EOF' > deploy-from-github.sh
+          #!/bin/bash
+          # GitHub Actionsで生成された自動デプロイスクリプト
+          set -e
+          
+          echo "🚀 Container Apps自動デプロイを開始します..."
+          
+          # 変数設定
+          BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend-image }}"
+          FRONTEND_IMAGE="${{ needs.build-and-push.outputs.frontend-image }}"
+          
+          echo "使用するイメージ:"
+          echo "  Backend:  $BACKEND_IMAGE"
+          echo "  Frontend: $FRONTEND_IMAGE"
+          echo ""
+          
+          # Backend デプロイ
+          echo "📦 Backendをデプロイ中..."
           az containerapp update \
             --name ${{ env.BACKEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --image ${{ needs.build-and-push.outputs.backend-image }} \
+            --image $BACKEND_IMAGE \
             --set-env-vars ENVIRONMENT=production SQL_SERVER_NAME="rg-test-hara.database.windows.net" SQL_DATABASE_NAME="rg-test-hara-SQL"
-
-      # バックエンドURLを取得
-      - name: Get backend URL
-        id: backend-url
-        run: |
-          BACKEND_URL=$(az containerapp show \
-            --name ${{ env.BACKEND_APP_NAME }} \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --query properties.configuration.ingress.fqdn \
-            --output tsv)
-          echo "url=https://$BACKEND_URL" >> $GITHUB_OUTPUT
-
-      # フロントエンドContainer Appの更新
-      - name: Deploy frontend to Container Apps
-        run: |
+          
+          echo "✅ Backend デプロイ完了"
+          
+          # Frontend デプロイ
+          echo "📦 Frontendをデプロイ中..."
           az containerapp update \
             --name ${{ env.FRONTEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --image ${{ needs.build-and-push.outputs.frontend-image }} \
-            --set-env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }}
-
-      # デプロイ結果を表示
-      - name: Display deployment URLs
-        run: |
-          echo "🚀 Deployment completed successfully!"
-          echo "Backend URL: ${{ steps.backend-url.outputs.url }}"
+            --image $FRONTEND_IMAGE \
+            --set-env-vars VITE_API_BASE_URL="https://rg-test-hara-ca-back.blackrock-912602d1.westus.azurecontainerapps.io"
           
-          FRONTEND_URL=$(az containerapp show \
-            --name ${{ env.FRONTEND_APP_NAME }} \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --query properties.configuration.ingress.fqdn \
-            --output tsv)
-          echo "Frontend URL: https://$FRONTEND_URL"
+          echo "✅ Frontend デプロイ完了"
+          
+          # URL表示
+          echo ""
+          echo "🌐 アプリケーションURL:"
+          echo "Backend:  https://rg-test-hara-ca-back.blackrock-912602d1.westus.azurecontainerapps.io"
+          echo "Frontend: https://rg-test-hara-ca-front.blackrock-912602d1.westus.azurecontainerapps.io"
+          echo ""
+          echo "🎉 デプロイ完了!"
+          EOF
+          
+          chmod +x deploy-from-github.sh
+          
+          echo "📄 デプロイスクリプトを生成しました: deploy-from-github.sh"
+          echo "実行方法: bash deploy-from-github.sh"
