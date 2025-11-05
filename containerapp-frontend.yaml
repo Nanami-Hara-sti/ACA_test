@@ -1,0 +1,33 @@
+# Container Apps フロントエンド設定
+# 使用方法: az containerapp create --yaml containerapp-frontend.yaml
+
+location: West US  
+name: rg-test-hara-ca-front
+resourceGroup: rg-test-hara-ca
+
+properties:
+  managedEnvironmentId: /subscriptions/YOUR-SUBSCRIPTION-ID/resourceGroups/rg-test-hara-ca/providers/Microsoft.App/managedEnvironments/cae-test-hara
+  configuration:
+    ingress:
+      external: true
+      targetPort: 3000
+      allowInsecure: false
+      traffic:
+      - weight: 100
+        latestRevision: true
+    registries: []
+  template:
+    containers:
+    - image: test-frontend-prod:latest
+      name: frontend-container
+      env:
+      - name: NODE_ENV
+        value: "production"
+      - name: VITE_API_BASE_URL
+        value: "https://rg-test-hara-ca-back.blackrock-912602d1.westus.azurecontainerapps.io"
+      resources:
+        cpu: 0.25
+        memory: 0.5Gi
+    scale:
+      minReplicas: 1
+      maxReplicas: 3

@@ -1,4 +1,4 @@
-# ---- 1. ベースステージ (依存関係のインストール) ----
+# 1. ベースステージ (依存関係のインストール) 
 # このステージを開発用と本番用ビルドで共有する
 FROM node:22-alpine as base
 WORKDIR /workspace/frontend
@@ -6,7 +6,7 @@ COPY frontend/package*.json ./
 RUN npm ci # npm installより高速で再現性が高い
 
 
-# ---- 2. 開発用ステージ ----
+# 2. 開発用ステージ 
 # devコンテナーはこのステージを使う
 FROM base as development
 COPY frontend/ ./
@@ -19,6 +19,11 @@ CMD ["npm", "start"]
 # 本番イメージをビルドする時だけ、このステージを使う
 FROM base as builder
 COPY frontend/ ./
+
+# ビルド時の環境変数（ARGで受け取る）
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # 本番用の静的ファイルをビルド
 RUN npm run build
 

@@ -1,21 +1,31 @@
-name: Build and Push to GHCR
+name: Build, Push to GHCR and Deploy to Container Apps
 
 # mainブランチにプッシュされたときに実行
 on:
   push:
     branches: [ main ]
+  workflow_dispatch: # 手動実行も可能
 
-# GHCRに書き込むための権限
+# GHCRに書き込み、Azureにデプロイするための権限
 permissions:
   contents: read
   packages: write
+  id-token: write # Azure OpenID Connect用
+
+env:
+  REGISTRY: ghcr.io
+  # Container Apps設定（リポジトリのVariablesで設定）
+  AZURE_RESOURCE_GROUP: 'rg-test-hara'
+  AZURE_CONTAINER_APP_ENVIRONMENT: 'ca-env-test'
+  BACKEND_APP_NAME: 'rg-test-hara-ca-back'
+  FRONTEND_APP_NAME: 'rg-test-hara-ca-front'
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    env:
-      REGISTRY: ghcr.io
-      OWNER_LC: ${{ github.repository_owner }}
+    outputs:
+      backend-image: ${{ steps.backend-meta.outputs.image-name }}
+      frontend-image: ${{ steps.frontend-meta.outputs.image-name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,12 +42,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }} # 自動的に提供されます
 
       # --- Backend イメージのビルド＆プッシュ ---
+      - name: Set backend image metadata
+        id: backend-meta
+        run: |
+          echo "image-name=ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-backend:${{ github.sha }}" >> $GITHUB_OUTPUT
+          
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
           context: . # docker-compose.yml と同じくルートコンテキスト
           file: ./backend/Dockerfile # backendのDockerfileを指定
-          # target: production # もしDockerfileに本番ステージがある場合
           push: true
           # イメージ名 (例: ghcr.io/nanami-hara-sti/my-test-backend:latest)
           tags: |
@@ -45,13 +59,98 @@ jobs:
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-backend:latest
 
       # --- Frontend イメージのビルド＆プッシュ ---
+      - name: Set frontend image metadata
+        id: frontend-meta
+        run: |
+          echo "image-name=ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:${{ github.sha }}" >> $GITHUB_OUTPUT
+          
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./frontend/Dockerfile
-          # target: production # frontend/Dockerfile はデフォルトで本番ビルドのはず
+          target: production # 明示的にproductionターゲットを指定
           push: true
+          build-args: |
+            VITE_API_BASE_URL=placeholder-will-be-replaced-at-runtime
           tags: |
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:${{ github.sha }}
             ghcr.io/${{ steps.lowercase.outputs.owner_lc }}/my-test-frontend:latest
+
+  # Container Appsへのデプロイジョブ
+  deploy-to-containerapp:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Azure CLIにログイン（OpenID Connect使用）
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # バックエンドContainer Appの作成・更新
+      - name: Deploy backend to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.BACKEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ needs.build-and-push.outputs.backend-image }} \
+            --set-env-vars ENVIRONMENT=production \
+            || az containerapp create \
+              --name ${{ env.BACKEND_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
+              --image ${{ needs.build-and-push.outputs.backend-image }} \
+              --env-vars ENVIRONMENT=production \
+              --ingress external \
+              --target-port 8000 \
+              --min-replicas 1 \
+              --max-replicas 3
+
+      # バックエンドURLを取得
+      - name: Get backend URL
+        id: backend-url
+        run: |
+          BACKEND_URL=$(az containerapp show \
+            --name ${{ env.BACKEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          echo "url=https://$BACKEND_URL" >> $GITHUB_OUTPUT
+
+      # フロントエンドContainer Appの作成・更新
+      - name: Deploy frontend to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ needs.build-and-push.outputs.frontend-image }} \
+            --set-env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
+            || az containerapp create \
+              --name ${{ env.FRONTEND_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --environment ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }} \
+              --image ${{ needs.build-and-push.outputs.frontend-image }} \
+              --env-vars VITE_API_BASE_URL=${{ steps.backend-url.outputs.url }} \
+              --ingress external \
+              --target-port 3000 \
+              --min-replicas 1 \
+              --max-replicas 3
+
+      # デプロイ結果を表示
+      - name: Display deployment URLs
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo "Backend URL: ${{ steps.backend-url.outputs.url }}"
+          
+          FRONTEND_URL=$(az containerapp show \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          echo "Frontend URL: https://$FRONTEND_URL"

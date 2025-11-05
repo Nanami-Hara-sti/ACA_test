@@ -1,0 +1,33 @@
+# Container Apps バックエンド設定
+# 使用方法: az containerapp create --yaml containerapp-backend.yaml
+
+location: West US
+name: rg-test-hara-ca-back
+resourceGroup: rg-test-hara-ca
+
+properties:
+  managedEnvironmentId: /subscriptions/YOUR-SUBSCRIPTION-ID/resourceGroups/rg-test-hara-ca/providers/Microsoft.App/managedEnvironments/cae-test-hara
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      allowInsecure: false
+      traffic:
+      - weight: 100
+        latestRevision: true
+    registries: []
+  template:
+    containers:
+    - image: test-backend-prod:latest
+      name: backend-container
+      env:
+      - name: ENVIRONMENT
+        value: "production"
+      - name: PORT
+        value: "8000"
+      resources:
+        cpu: 0.25
+        memory: 0.5Gi
+    scale:
+      minReplicas: 1
+      maxReplicas: 3

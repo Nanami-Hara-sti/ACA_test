@@ -27,3 +27,9 @@ RUN apt-get update && \
 # Pythonライブラリのインストール
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
+
+# アプリケーションコードをコピー
+COPY backend/ ./
+
+# 実行コマンド（本番環境用）
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

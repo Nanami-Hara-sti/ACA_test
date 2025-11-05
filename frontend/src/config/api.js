@@ -24,6 +24,7 @@ export const API_ENDPOINTS = {
   HEALTH: '/api/health',
   TEST_DB: '/api/test-db',
   UPLOAD: '/api/upload',
+  PRODUCTS: '/api/products',
 };
 
 // API呼び出し用のヘルパー関数
